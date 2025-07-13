@@ -5,6 +5,7 @@ const router = Router();
 import { upload } from "../middlewares/multer.middleware.js";
 import { logoutUser } from "../controllers/user.controller.js";
 import {refreshAccessToken} from "../controllers/user.controller.js";
+import  verifyJWT from "jsonwebtoken";
 
 router.route("/register").post(
     upload.fields([
@@ -15,5 +16,6 @@ router.route("/register").post(
 );
 router.route("/login").post(loginUser);
 router.route("/logout").post(verifyJWT,logoutUser);
-router.route("/refresh-Token").post(refreshAccessToken)
+router.route("/refresh-Token").post(refreshAccessToken);
+router.route("")
 export default router; 
