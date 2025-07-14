@@ -1,4 +1,5 @@
-import asyncHandler from 'express-async-handler';
+import asyncHandler from 'express-async-handler'; 
+
 import { ApiError } from '../utils/ApiError.js';
 import { User } from '../models/user.model.js';
 import { uploadOnCloudinary } from '../utils/cloudinary.js';
@@ -71,7 +72,10 @@ const registerUser = asyncHandler(async (req, res) => {
 });
 
 const loginUser = asyncHandler(async (req, res) => {
+  
   const { email, username, password } = req.body;
+ 
+
 
   if (!email && !username) {
     throw new ApiError(400, 'Email or Username is required');
@@ -107,7 +111,7 @@ const loginUser = asyncHandler(async (req, res) => {
 const logoutUser = asyncHandler(async (req, res) => {
   await User.findByIdAndUpdate(
     req.user._id,
-    { $set: { refreshToken: undefined } },
+    { $unset: { refreshToken: 1} },
     { new: true }
   );
 
@@ -189,14 +193,14 @@ const changeCurrentPassword=asyncHandler(async(req,res)=>{
 
 const getCurrentUser= asyncHandler(async(req,res)=>{
   return res.status(200)
-  .json(200,req.user,"Current User Fetched Successfully")
+  .json(new ApiResponse(200,req.user,"Current User Fetched Successfully"))
 })
 
 const updateUserDetails=asyncHandler(async(req,res)=>{
   const {fullName,email}=req.body
   if(!email||!fullName){
     throw new ApiError(400,"All Fields are Required")
-   await  User.findByIdAndUpdate(
+   const user=await  User.findByIdAndUpdate(
     req.user?._id,
     {
       $set:{
@@ -208,13 +212,22 @@ const updateUserDetails=asyncHandler(async(req,res)=>{
 
    ).select("-password")
   }
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      user,
-      "Account Details Updated Successfully"
-    )
-  )
+ if(!email||!fullName){
+  throw new ApiError(400,"All Fields are Required");
+}
+
+const user = await User.findByIdAndUpdate(
+  req.user?._id,
+  {
+    $set:{ fullName, email }
+  },
+  {new:true}
+).select("-password");
+
+return res.status(200).json(
+  new ApiResponse(200, user, "Account Details Updated Successfully")
+);
+
 })
 
 const updateUserAvatar=asyncHandler(async(req,res)=>{
@@ -227,12 +240,12 @@ if(!avatar.url){
   throw new ApiError(400,"Error While Uploading Avatar On Cloudinary")
 }
 const user=await User.findByIdAndUpdate(
-  req.file?.path,
+  req.file?._id,
   {
     $set:{
       avatar:avatar.url
     }
-  },{new:true}.select("-password"))
+  },{new:true}).select("-password")
   return res.status(200)
   .json(new ApiResponse(
     200,
@@ -249,11 +262,11 @@ if(!coverImageLocalPath){
   throw new ApiError(400,"coverImage is Missing")
 }
 const coverImage=await uploadOnCloudinary(coverImageLocalPath)
-if(!avatar.url){
+if(!coverImage.url){
   throw new ApiError(400,"Error While Uploading coverImage On Cloudinary")
 }
 const user=await User.findByIdAndUpdate(
-  req.file?.path,
+  req.file?._id,
   {
     $set:{
       coverImage:coverImage.url
@@ -267,74 +280,71 @@ const user=await User.findByIdAndUpdate(
   )
 )
 })
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+  const { username } = req.params;
 
-const getUserChannelProfile=asyncHandler(async(req,res)=>{
-  const {username}=req.params
-  if(!username?.trim()){
-    throw new ApiError(400,"username is missing ")
+  if (!username?.trim()) {
+    throw new ApiError(400, "Username is missing");
   }
-  const channel =await User.aggregate([ //pipeline
+
+  const channel = await User.aggregate([
     {
-      $match:{
-        username:username?.toLowerCase()
+      $match: {
+        username: username.toLowerCase()
       }
     },
-      {
-        $lookup:{
-          from:"subscriptions",
-          localField:"_id",
-          foreignField:"channel",
-          as:"subscribers"
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "channel",
+        as: "subscribers"
+      }
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "subscriber",
+        as: "subscribedTo"
+      }
+    },
+    {
+      $addFields: {
+        subscribersCount: { $size: "$subscribers" },
+        channelSubscribedToCount: { $size: "$subscribedTo" },
+        isSubscribed: {
+         $in: [new mongoose.Types.ObjectId(req.user._id), "$subscribers.subscriber"]
         }
-      },
-      {
-        $lookup:{
-           from:"subscriptions",
-          localField:"_id",
-          foreignField:"subscriber",
-          as:"subscribedTo"
-        }
-      },
-      {
-        $addFields:{
-          subscribersCount:{
-            $size:"$subscribers"
-          },
-          channelSubscribedToCount:{
-            $size:"$subscribedTo"
-          }
-        },
-        isSubscribed:{
-          $cond:{
-            if:{$in:[req.user?._id,"subscribers.subscriber"]},
-            then:true,
-            else:false
-          }
-        },
-        $project:{
-          fullName:1,
-          username:1,
-          subscribersCount:1,
-          channelSubscribedToCount:1,
-          isSubscribed:1,
-          avatar:1,
-          coverImage:1,
-          email:1
-
-        }
+      }
+    },
+    {
+      $project: {
+        fullName: 1,
+        username: 1,
+        subscribersCount: 1,
+        channelSubscribedToCount: 1,
+        isSubscribed: 1,
+        avatar: 1,
+        coverImage: 1,
+        email: 1
+      }
     }
-    
-  ])
-  if(!channel?.length){
-    throw new ApiError(400,"Channel Doesnt Exist")
+  ]);
+
+  if (!channel?.length) {
+    throw new ApiError(404, "Channel doesn't exist");
   }
-  return res.status(200)
-  .json(new ApiResponse(
-    200,
-    channel[0],
-    "Channel Fetched Successfully"
-  ))
-})
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      channel[0],
+      "Channel fetched successfully"
+    )
+  );
+});
+
 const getWatchHistory = asyncHandler(async (req, res) => {
   const user = await User.aggregate([
     {
@@ -381,16 +391,16 @@ const getWatchHistory = asyncHandler(async (req, res) => {
   .json(
     new ApiResponse(
       200,
-      user[0].WatchHistory,
+      user[0].watchHistory,
       "Watch History Fetched Successfully"
     )
   )
 })
-export { 
-  registerUser, 
-  loginUser, 
+export {
+  registerUser,
+  loginUser,
   logoutUser,
-  refreshAccessToken,
+  refreshAccessToken, 
   changeCurrentPassword,
   getCurrentUser,
   updateUserDetails,
@@ -398,4 +408,4 @@ export {
   updateUserCoverImage,
   getUserChannelProfile,
   getWatchHistory
-  };
+};
