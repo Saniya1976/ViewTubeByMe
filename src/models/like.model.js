@@ -1,5 +1,5 @@
 import mongoose, {Schema} from "mongoose";
-import mongooseAggregatePaginate from "mongoose-aggregate-paginate-v2";
+
 import { User } from "./user.model.js";
 import { Video } from "./video.model.js";
 import { Comment } from "./comment.model.js";
@@ -19,13 +19,13 @@ const likeschema=new Schema(
              type:Schema.Types.ObjectId,
              ref:"Tweet"
         },
-        video:{
+        videos:{
               type:Schema.Types.ObjectId,
               ref:"Video"
         }
     },{timestamps:true}
 )
 
-likeSchema.plugin(mongooseAggregatePaginate);
+
 
 export const Like = mongoose.model("Like", likeSchema);
