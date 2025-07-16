@@ -83,7 +83,7 @@ const updateVideo = asyncHandler(async (req, res) => {
         video,
         "Video Updated Successfully"
     ))
- } );   //TODO: update video details like title, description, thumbnail
+ } );  
 
 
 const deleteVideo = asyncHandler(async (req, res) => {
