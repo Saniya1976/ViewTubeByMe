@@ -30,8 +30,6 @@ const getChannelStats = asyncHandler(async (req, res) => {
         const likeCount = await Like.countDocuments({ video: video._id });
         totalLikes += likeCount;
     }
-
-
     const stats = {
         channelId,
         totalSubscribers,
